@@ -6,6 +6,8 @@ class DrawingCanvas {
     this.isDrawing = false;
     this.currentStroke = null;
     this.strokes = [];
+    this.undoStack = [];
+    this.redoStack = [];
     this.enabled = false;
 
     this.setupCanvas();
@@ -88,6 +90,10 @@ class DrawingCanvas {
         this.currentStroke.ys.map(Math.round)
       ];
       
+      // Save to undo stack before adding stroke
+      this.undoStack.push([...this.strokes]);
+      this.redoStack = []; // Clear redo stack when new action is performed
+      
       this.strokes.push(stroke);
       
       // Emit stroke event
@@ -119,7 +125,52 @@ class DrawingCanvas {
   clear() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.strokes = [];
+    this.undoStack = [];
+    this.redoStack = [];
     this.currentStroke = null;
+  }
+
+  undo() {
+    if (this.strokes.length === 0) return;
+    
+    // Save current state to redo stack
+    this.redoStack.push([...this.strokes]);
+    
+    // Remove last stroke
+    const lastStroke = this.strokes.pop();
+    
+    // Redraw canvas
+    this.redrawCanvas();
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) return;
+    
+    // Restore from redo stack
+    this.strokes = this.redoStack.pop();
+    
+    // Redraw canvas
+    this.redrawCanvas();
+  }
+
+  redrawCanvas() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Redraw all strokes
+    this.strokes.forEach(stroke => {
+      const [xs, ys] = stroke;
+      
+      if (xs.length < 2) return;
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(xs[0], ys[0]);
+      
+      for (let i = 1; i < xs.length; i++) {
+        this.ctx.lineTo(xs[i], ys[i]);
+      }
+      
+      this.ctx.stroke();
+    });
   }
 
   enable() {

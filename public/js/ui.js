@@ -75,6 +75,16 @@ class UIManager {
           item.appendChild(badge);
         }
 
+        // Show drawing submitted status
+        if (player.hasSubmittedDrawing) {
+          const badge = document.createElement('span');
+          badge.className = 'host-badge';
+          badge.style.background = '#4CAF50';
+          badge.style.color = 'white';
+          badge.textContent = '完了';
+          item.appendChild(badge);
+        }
+
         list.appendChild(item);
       });
     });
@@ -143,6 +153,36 @@ class UIManager {
       case 'finished':
         this.showScreen('finished-screen');
         break;
+    }
+  }
+
+  setHostControls(isHost, resultsComplete = false) {
+    this.isHost = isHost;
+
+    const settingsCard = document.getElementById('settings-card');
+    const startBtn = document.getElementById('start-game-btn');
+    const nextRoundBtn = document.getElementById('next-round-btn');
+    const waitingNext = document.getElementById('waiting-next');
+    const returnLobbyBtn = document.getElementById('return-lobby-btn-results');
+
+    if (isHost) {
+      if (startBtn) startBtn.style.display = 'block';
+      if (nextRoundBtn) nextRoundBtn.style.display = resultsComplete ? 'none' : 'inline-block';
+      if (waitingNext) waitingNext.classList.add('hidden');
+      if (settingsCard) settingsCard.classList.remove('disabled');
+      if (returnLobbyBtn) {
+        if (resultsComplete) {
+          returnLobbyBtn.classList.remove('hidden');
+        } else {
+          returnLobbyBtn.classList.add('hidden');
+        }
+      }
+    } else {
+      if (startBtn) startBtn.style.display = 'none';
+      if (nextRoundBtn) nextRoundBtn.style.display = 'none';
+      if (waitingNext) waitingNext.classList.remove('hidden');
+      if (settingsCard) settingsCard.classList.add('disabled');
+      if (returnLobbyBtn) returnLobbyBtn.classList.add('hidden');
     }
   }
 

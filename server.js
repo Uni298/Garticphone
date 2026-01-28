@@ -162,6 +162,7 @@ io.on('connection', (socket) => {
   // Submit drawing
   socket.on('submit-drawing', ({ roomId, drawing, png }) => {
     if (gameManager.submitDrawing(roomId, socket.id, drawing, png)) {
+      socket.emit('drawing-submitted');
       emitRoomState(roomId);
     }
   });

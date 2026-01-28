@@ -406,6 +406,12 @@ class GameManager {
     room.currentTexts.set(socketId, prompt.trim());
     room.allGameText.push(`お題: ${prompt.trim()}`);
 
+    // Mark player as having submitted prompt
+    const player = room.players.get(socketId);
+    if (player) {
+      player.hasSubmittedPrompt = true;
+    }
+
     if (!room.chainItems.has(socketId)) {
       room.chainItems.set(socketId, []);
     }
@@ -474,6 +480,12 @@ class GameManager {
         drawing: Array.isArray(drawing) ? drawing : [],
         png: png || null
       });
+    }
+
+    // Mark player as having submitted drawing
+    const player = room.players.get(socketId);
+    if (player) {
+      player.hasSubmittedDrawing = true;
     }
 
     if (room.drawings.size >= room.players.size) {

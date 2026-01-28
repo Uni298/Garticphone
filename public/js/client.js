@@ -103,6 +103,17 @@ function initializeEventListeners() {
   document.getElementById('clear-canvas-btn').onclick = () => {
     drawingCanvas.clear();
   };
+  document.getElementById('undo-btn').onclick = () => {
+    drawingCanvas.undo();
+  };
+  document.getElementById('redo-btn').onclick = () => {
+    drawingCanvas.redo();
+  };
+  document.getElementById('pen-thickness-slider').oninput = (e) => {
+    const thickness = parseInt(e.target.value);
+    drawingCanvas.setLineWidth(thickness);
+    document.getElementById('pen-thickness-value').textContent = thickness;
+  };
   document.getElementById('end-drawing-btn').onclick = endDrawing;
 
   // Prompt screen
@@ -251,7 +262,7 @@ socket.on('room-joined', (data) => {
   }
   
   // Hide error
-  ui.hideError();
+  // ui.hideError(); // Method doesn't exist, remove this line
 
   // If game is already running, switch to game screen immediately
   if (data.gameState !== 'lobby') {
@@ -310,12 +321,32 @@ socket.on('guess-submitted', () => {
   hasSubmittedGuess = true;
 });
 
+socket.on('drawing-submitted', () => {
+  const drawingStatus = document.getElementById('drawing-status');
+  if (drawingStatus) {
+    drawingStatus.className = 'guess-status submitted';
+    drawingStatus.textContent = '✓ 描画完了を送信しました!';
+  }
+  document.getElementById('end-drawing-btn').style.display = 'none';
+  hasSubmittedDrawing = true;
+  
+  // Show waiting animation if others are still submitting
+  if (window.showWaitingAnimation) {
+    window.showWaitingAnimation();
+  }
+});
+
 socket.on('prompt-submitted', () => {
   document.getElementById('prompt-status').className = 'guess-status submitted';
   document.getElementById('prompt-status').textContent = '✓ お題を送信しました!';
   document.getElementById('submit-prompt-btn').disabled = true;
   document.getElementById('prompt-input').disabled = true;
   hasSubmittedPrompt = true;
+  
+  // Show waiting animation if others are still submitting
+  if (window.showWaitingAnimation) {
+    window.showWaitingAnimation();
+  }
 });
 
 socket.on('error', (data) => {
@@ -326,6 +357,9 @@ socket.on('error', (data) => {
 function handleGameState(state) {
   if (state.gameState !== currentGameState && state.gameState !== 'results') {
     hasShownResultsReveal = false;
+  }
+  if (state.gameState !== currentGameState && state.gameState === 'drawing') {
+    hasSubmittedDrawing = false;
   }
   currentGameState = state.gameState;
   // Centralized UI update (screens, lists, controls)
@@ -387,16 +421,25 @@ function handlePrompt(state) {
     document.getElementById('prompt-input').disabled = true;
     document.getElementById('submit-prompt-btn').disabled = true;
   }
+
+  // Show waiting animation if others are still submitting
+  const submittedCount = state.players ? state.players.filter(p => p.hasSubmittedPrompt).length : 0;
+  if (hasSubmittedPrompt && submittedCount < state.players.length) {
+    if (window.showWaitingAnimation) {
+      window.showWaitingAnimation();
+    }
+  }
 }
 
 function handleDrawing(state) {
   ui.showScreen('drawing-screen');
 
   hasSubmittedGuess = false;
-  hasSubmittedDrawing = false;
 
-  // Clear previous drawing
-  drawingCanvas.clear();
+  // Only clear canvas if we're entering drawing from a different phase
+  if (currentGameState !== 'drawing') {
+    drawingCanvas.clear();
+  }
 
   // Start timer
   startTimer('drawing-timer', state.timeRemaining);
@@ -410,18 +453,40 @@ function handleDrawing(state) {
 
   document.getElementById('spectator-message').classList.add('hidden');
   document.getElementById('drawing-canvas').parentElement.style.display = 'block';
-  if (!hasSubmittedDrawing) {
-    drawingCanvas.enable();
-  } else {
-    drawingCanvas.disable();
-  }
+  drawingCanvas.enable();
   drawingTools.style.display = 'flex';
-  document.getElementById('end-drawing-btn').style.display = hasSubmittedDrawing ? 'none' : 'block';
+  
+  // Show/hide drawing button based on submission status
+  const endDrawingBtn = document.getElementById('end-drawing-btn');
+  if (hasSubmittedDrawing) {
+    endDrawingBtn.style.display = 'none';
+  } else {
+    endDrawingBtn.style.display = 'block';
+  }
+  
+  const drawingStatus = document.getElementById('drawing-status');
+  if (drawingStatus) {
+    if (hasSubmittedDrawing) {
+      drawingStatus.className = 'guess-status submitted';
+      drawingStatus.textContent = '✓ 描画完了を送信しました!';
+    } else {
+      drawingStatus.className = 'guess-status';
+      drawingStatus.textContent = '';
+    }
+  }
 
   const allowClear = state.settings && state.settings.allowClearCanvas !== false;
   document.getElementById('clear-canvas-btn').style.display = allowClear ? 'block' : 'none';
   guessCanvas.clear();
   document.getElementById('floating-reaction-bar').style.display = 'none';
+
+  // Show waiting animation if others are still submitting
+  const submittedCount = state.players ? state.players.filter(p => p.hasSubmittedDrawing).length : 0;
+  if (hasSubmittedDrawing && submittedCount < state.players.length) {
+    if (window.showWaitingAnimation) {
+      window.showWaitingAnimation();
+    }
+  }
 }
 
 function handleGuessing(state) {
@@ -455,7 +520,7 @@ function handleResults(state) {
   const resScreen = document.getElementById('results-screen');
   if (resScreen) resScreen.classList.remove('visible');
 
-  const returnLobbyBtn = document.getElementById('return-lobby-btn');
+  const returnLobbyBtn = document.getElementById('return-lobby-btn-results');
   if (returnLobbyBtn) {
     if (state.resultsComplete) {
       returnLobbyBtn.classList.remove('hidden');
@@ -624,11 +689,17 @@ async function endDrawing() {
   if (confirmed) {
     if (hasSubmittedDrawing) return;
     hasSubmittedDrawing = true;
+    const drawingStatus = document.getElementById('drawing-status');
+    if (drawingStatus) {
+      drawingStatus.className = 'guess-status submitted';
+      drawingStatus.textContent = '✓ 描画完了を送信しました!';
+    }
     socket.emit('submit-drawing', {
       roomId: ui.roomId,
       drawing: drawingCanvas.getStrokes(),
       png: drawingCanvas.canvas.toDataURL('image/png')
     });
+    // Note: Player list will update automatically when server sends new state
   }
 }
 

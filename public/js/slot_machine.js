@@ -10,7 +10,12 @@ function showSlotMachineReveal(allGameText, callback) {
   }
   
   // Show overlay
+  // Reset animation state so repeated calls re-trigger CSS animation
   overlay.classList.remove('hidden');
+  // Force reflow to restart animation reliably
+  // eslint-disable-next-line no-unused-expressions
+  overlay.offsetHeight;
+  overlay.classList.add('active');
   
   // Clear any existing content
   reel.innerHTML = '';
@@ -63,7 +68,7 @@ function showSlotMachineReveal(allGameText, callback) {
     // Random size and opacity
     const scale = 0.5 + Math.random() * 1.5;
     el.style.fontSize = `${1.5 * scale}rem`;
-    el.style.opacity = 0.3 + Math.random() * 0.7;
+    el.style.opacity = 0.8 + Math.random() * 0.2; // Higher opacity for better visibility
     el.style.color = Math.random() > 0.5 ? '#330634' : '#ff9446';
     el.style.position = 'absolute';
     el.style.whiteSpace = 'nowrap';
@@ -131,22 +136,23 @@ function showSlotMachineReveal(allGameText, callback) {
   
   update();
   
-  // Finish animation after 5 seconds
+  // Finish animation after 3 seconds
   setTimeout(() => {
     isActive = false;
     
-    // Fade out all words
+    // Fade out all words more slowly
     wordElements.forEach(item => {
-      item.el.style.transition = 'opacity 0.5s';
+      item.el.style.transition = 'opacity 1.5s';
       item.el.style.opacity = '0';
     });
     
     // Hide overlay after fade
     setTimeout(() => {
+      overlay.classList.remove('active');
       overlay.classList.add('hidden');
       if (callback) callback();
-    }, 500);
-  }, 5000); // 5 second duration
+    }, 1500); // Wait for fade out to complete
+  }, 3000); // 3 second duration
 }
 
 function shuffleArray(array) {

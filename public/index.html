@@ -269,12 +269,26 @@
                 id="drawing-tools"
                 style="display: none"
               >
-                <button id="clear-canvas-btn" class="btn btn-secondary">
-                  クリア
-                </button>
+                <div class="btn-row">
+                  <button id="clear-canvas-btn" class="btn btn-secondary">
+                    クリア
+                  </button>
+                  <button id="undo-btn" class="btn btn-secondary">
+                    一つ戻る
+                  </button>
+                  <button id="redo-btn" class="btn btn-secondary">
+                    やり直し
+                  </button>
+                </div>
+                <div class="pen-thickness-control">
+                  <label for="pen-thickness-slider">ペンの太さ</label>
+                  <input type="range" id="pen-thickness-slider" min="1" max="50" value="10" class="slider">
+                  <span id="pen-thickness-value">10</span>
+                </div>
                 <button id="end-drawing-btn" class="btn btn-primary">
                   描画完了
                 </button>
+                <div id="drawing-status" class="guess-status"></div>
               </div>
               </div>
             </div>
