@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>人間 vs AI</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=DotGothic16&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Fullscreen toggle button style */
+      #fullscreen-toggle {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 2000;
+        padding: 6px 12px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      
+      /* Row Filters */
+      .row-filters-container {
+        margin-bottom: 10px;
+        overflow-x: auto;
+      }
+      .row-filters {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .row-filter-btn {
+        padding: 4px 8px;
+        font-size: 12px;
+        background: #eee;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .row-filter-btn:hover {
+        background: #ddd;
+      }
+      .row-filter-btn.active {
+        background: #4A90E2;
+        color: white;
+        border-color: #357ABD;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Lobby Screen -->
+      <div id="lobby-screen" class="screen active">
+        <div class="container">
+          <h1 class="title">🎨 Gartic Phone</h1>
+          <p class="subtitle">お題と絵をつないでカオスな伝言を楽しもう</p>
+
+          <div class="card">
+            <div class="input-group">
+              <label for="player-name">プレイヤー名</label>
+              <input
+                type="text"
+                id="player-name"
+                placeholder="名前を入力"
+                maxlength="20"
+              />
+            </div>
+
+            <div class="button-group">
+              <button id="create-room-btn" class="btn btn-primary">
+                部屋を作成
+              </button>
+              <button id="join-room-btn" class="btn btn-secondary">
+                部屋に参加
+              </button>
+            </div>
+
+            <div id="join-room-input" class="input-group hidden">
+              <label for="room-code">部屋コード</label>
+              <input
+                type="text"
+                id="room-code"
+                placeholder="6桁のコード"
+                maxlength="6"
+              />
+              <button id="join-confirm-btn" class="btn btn-primary">
+                参加する
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room ID Display (Top Left) -->
+      <div id="room-id-display-container" class="room-id-display" style="display: none;">
+        <span>ルームID: </span>
+        <span id="room-id-display-value" class="room-id-value"></span>
+      </div>
+
+      <!-- Room Screen -->
+      <div id="room-screen" class="screen">
+        <div class="container">
+          <div class="room-header">
+            <h2>
+              部屋コード:
+              <span id="room-code-display" class="code">------</span>
+            </h2>
+            <button id="leave-room-btn" class="btn btn-danger">退出</button>
+          </div>
+
+          <div class="room-content">
+            <div class="card">
+              <h3>プレイヤー (<span id="player-count">0</span>/6)</h3>
+              <div id="player-list" class="player-list"></div>
+            </div>
+
+            <div class="card" id="settings-card">
+              <h3>
+                ゲーム設定
+                <span id="host-only-badge" class="host-badge hidden"
+                  >ホスト専用</span
+                >
+              </h3>
+              <div class="settings-grid">
+                <div class="setting-item">
+                  <label for="prompt-time">お題作成時間 (秒)</label>
+                  <input
+                    type="number"
+                    id="prompt-time"
+                    min="20"
+                    max="120"
+                    value="45"
+                  />
+                </div>
+                <div class="setting-item">
+                  <label for="drawing-time">描画時間 (秒)</label>
+                  <input
+                    type="number"
+                    id="drawing-time"
+                    min="30"
+                    max="180"
+                    value="90"
+                  />
+                </div>
+                <div class="setting-item">
+                  <label for="guessing-time">推測時間 (秒)</label>
+                  <input
+                    type="number"
+                    id="guessing-time"
+                    min="20"
+                    max="120"
+                    value="45"
+                  />
+                </div>
+                <div class="setting-item checkbox-item">
+                  <label for="allow-clear-canvas">クリアボタンを許可</label>
+                  <input type="checkbox" id="allow-clear-canvas" checked />
+                </div>
+                <div class="setting-item">
+                  <label for="max-players">最大プレイヤー数</label>
+                  <input
+                    type="number"
+                    id="max-players"
+                    min="2"
+                    max="12"
+                    value="8"
+                  />
+                </div>
+                <div class="setting-item">
+                  <label for="canvas-size">キャンバスサイズ</label>
+                  <select id="canvas-size">
+                    <option value="600x600">600 x 600</option>
+                    <option value="800x600" selected>800 x 600</option>
+                    <option value="1000x800">1000 x 800</option>
+                  </select>
+                </div>
+                <div class="setting-item">
+                  <label for="pen-thickness">ペンの太さ</label>
+                  <input
+                    type="number"
+                    id="pen-thickness"
+                    min="1"
+                    max="50"
+                    value="10"
+                  />
+                </div>
+              </div>
+              <button
+                id="update-settings-btn"
+                class="btn btn-secondary"
+                style="display: none"
+              >
+                設定を更新
+              </button>
+            </div>
+          </div>
+
+          <button id="start-game-btn" class="btn btn-primary btn-large">
+            ゲーム開始
+          </button>
+        </div>
+      </div>
+
+      <!-- Prompt Screen -->
+      <div id="prompt-screen" class="screen">
+        <div class="container">
+          <div class="game-header">
+            <div class="round-info">
+              ラウンド <span id="prompt-round">1</span>/<span
+                id="prompt-max-rounds"
+                >1</span
+              >
+            </div>
+            <div class="timer" id="prompt-timer">45</div>
+          </div>
+          <div class="card" style="max-width: 720px; margin: 0 auto;">
+            <h3>最初のお題を書こう</h3>
+            <p class="subtitle">自分だけが知っている面白いお題を書いてね。</p>
+            <div class="input-group">
+              <textarea
+                id="prompt-input"
+                class="prompt-input"
+                rows="4"
+                maxlength="80"
+                placeholder="例: 猫が宇宙でダンスしている"
+              ></textarea>
+            </div>
+            <button id="submit-prompt-btn" class="btn btn-primary">お題を送信</button>
+            <div id="prompt-status" class="guess-status"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drawing Screen -->
+      <div id="drawing-screen" class="screen">
+        <div class="container">
+          <div class="game-header">
+            <div class="round-info">
+              ラウンド <span id="current-round">1</span>/<span
+                id="max-rounds-display"
+                >1</span
+              >
+            </div>
+            <div class="timer" id="drawing-timer">90</div>
+            <div class="category-display">
+              お題: <span id="current-category">???</span>
+            </div>
+            <button id="end-game-btn-drawing" class="btn btn-secondary btn-small host-only hidden" style="margin-left: 10px;">中断</button>
+          </div>
+
+          <div class="drawing-area">
+            <div class="canvas-container">
+              <canvas id="drawing-canvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="sidebar">
+              <div class="card">
+                <h3>プレイヤー</h3>
+                <div id="game-player-list" class="player-list-small"></div>
+              </div>
+              
+              <div
+                class="canvas-tools"
+                id="drawing-tools"
+                style="display: none"
+              >
+                <button id="clear-canvas-btn" class="btn btn-secondary">
+                  クリア
+                </button>
+                <button id="end-drawing-btn" class="btn btn-primary">
+                  描画完了
+                </button>
+              </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="spectator-message" class="spectator-message hidden">
+            <p>🎨 他のプレイヤーが描いています...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guessing Screen -->
+      <div id="guessing-screen" class="screen">
+        <div class="container">
+          <div class="game-header">
+            <div class="round-info">
+              ラウンド <span id="guess-round">1</span>/<span
+                id="guess-max-rounds"
+                >1</span
+              >
+            </div>
+            <div class="timer" id="guessing-timer">30</div>
+            <button id="end-game-btn-guessing" class="btn btn-secondary btn-small host-only hidden" style="margin-left: auto;">中断</button>
+          </div>
+
+          <div class="guessing-area">
+            <div class="canvas-container">
+              <canvas id="guess-canvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="sidebar">
+              <div class="card">
+                <h3>この絵は何?</h3>
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="guess-input"
+                    placeholder="例: 猫が宇宙でダンスしている"
+                    autocomplete="off"
+                    maxlength="80"
+                  />
+                  <button
+                    id="submit-guess-btn"
+                    class="btn btn-primary"
+                  >
+                    推測を送信
+                  </button>
+                </div>
+                <div id="guess-status" class="guess-status"></div>
+              </div>
+
+              <div class="card">
+                <h3>回答済みプレイヤー</h3>
+                <div id="guessed-players" class="guessed-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results Screen -->
+      <div id="results-screen" class="screen">
+        <div class="container">
+          <div class="results-header-container">
+            <h2 class="phase-title">結果発表</h2>
+          </div>
+
+          <div class="results-content">
+            <div class="results-tabs" id="results-tabs"></div>
+            <div class="results-tab-panel" id="results-tab-panel"></div>
+          </div>
+
+          <button id="next-round-btn" class="btn btn-primary btn-large">
+            次へ
+          </button>
+          <button id="return-lobby-btn-results" class="btn btn-primary btn-large hidden">
+            ロビーに戻る
+          </button>
+          <div id="waiting-next" class="waiting hidden">
+            <p>ホストが次に進むのを待っています...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Finished Screen -->
+      <div id="finished-screen" class="screen">
+        <div class="container">
+          <h1 class="title">🎉 ゲーム終了!</h1>
+
+          <div class="card">
+            <h3>おつかれさま!</h3>
+            <p class="subtitle">また遊ぶときはホストがロビーに戻します。</p>
+          </div>
+
+          <button id="return-lobby-btn" class="btn btn-primary btn-large">
+            ロビーに戻る
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reaction Display -->
+    <div class="reaction-display" id="reactionDisplay"></div>
+
+    <!-- Slot Machine Overlay -->
+    <div id="slot-overlay" class="slot-overlay hidden">
+      <div class="slot-reel" id="slot-reel"></div>
+      <div class="slot-caption">これまでのお題・推測が流れます…</div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal">
+      <div class="modal-content">
+        <div class="modal-title" id="modalTitle">確認</div>
+        <div class="modal-message" id="modalMessage">実行しますか?</div>
+        <div class="modal-buttons">
+          <button class="btn btn-secondary" id="modalCancel">キャンセル</button>
+          <button class="btn btn-primary" id="modalConfirm">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Reaction Buttons (Left of Chat) -->
+    <div id="floating-reaction-bar" class="floating-reaction-bar" style="display: none;">
+      <button class="reaction-btn" data-emoji="good">
+        <img src="/images/good.png" alt="Good" style="width: 24px; height: 24px" />
+      </button>
+    </div>
+
+    <!-- Chat Box -->
+    <div id="chatBox" class="minimized">
+      <div id="chatHeader">
+        <div class="chat-header-content">
+          <button id="chatToggle">▲</button>
+          <span id="chatNotification" class="notification-badge hidden"></span>
+        </div>
+      </div>
+      <div id="chatMessages"></div>
+      <!-- chat-preview removed -->
+      <div id="chatInputArea">
+        <input type="text" id="chatInput" placeholder="メッセージを入力..." />
+        <button id="chatSendBtn">送信</button>
+      </div>
+    </div>
+
+    <script src="/js/slot_machine.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/translations.js"></script>
+    <script src="/js/category_readings.js"></script>
+    <script src="/js/canvas.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/client.js"></script>
+    <script src="/js/chat.js"></script>
+  </body>
+</html>
