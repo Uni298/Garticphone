@@ -94,7 +94,6 @@ class GameManager {
 
 
     return room;
-
   }
 
 
@@ -629,7 +628,7 @@ class GameManager {
 
     room.allGameText.push(...Array.from(room.guesses.values()).map(text => `答え: ${text}`));
 
-    if (room.currentRound < room.settings.maxRounds) {
+    if (room.currentRound < room.players.size) {
       room.currentRound += 1;
       room.gameState = "drawing";
       room.drawings.clear();
@@ -770,3 +769,4 @@ class GameManager {
 
 
 module.exports = GameManager;
+
