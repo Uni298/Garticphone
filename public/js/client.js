@@ -438,7 +438,7 @@ function handleDrawing(state) {
 
   // Only clear canvas if we're entering drawing from a different phase
 
-    drawingCanvas.clear();
+    
   
 
   // Start timer
@@ -513,6 +513,15 @@ function handleGuessing(state) {
     screen.style.transition = 'opacity 0.5s ease';
     screen.style.opacity = '0';
   }
+
+  hasSubmittedDrawing = false;  // 描画完了フラグをリセット
+  const drawingStatus = document.getElementById('drawing-status');
+  if (drawingStatus) {
+    drawingStatus.className = 'guess-status';
+    drawingStatus.textContent = '';
+  }
+
+  drawingCanvas.clear();
 }
 
 function handleResults(state) {
@@ -755,4 +764,5 @@ function updateSettingsVisibility(isHost) {
     hostBadge.classList.add('hidden');
   }
 }
+
 
