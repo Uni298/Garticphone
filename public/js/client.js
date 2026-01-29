@@ -437,9 +437,9 @@ function handleDrawing(state) {
   hasSubmittedGuess = false;
 
   // Only clear canvas if we're entering drawing from a different phase
-  if (currentGameState !== 'drawing') {
+
     drawingCanvas.clear();
-  }
+  
 
   // Start timer
   startTimer('drawing-timer', state.timeRemaining);
@@ -755,3 +755,4 @@ function updateSettingsVisibility(isHost) {
     hostBadge.classList.add('hidden');
   }
 }
+
