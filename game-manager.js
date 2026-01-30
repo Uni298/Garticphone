@@ -1,44 +1,28 @@
 const { v4: uuidv4 } = require("uuid");
 
-
-
 class GameManager {
-
   constructor() {
     this.rooms = new Map();
     this.onStateChange = null; // Callback for state changes
   }
 
-
-
   setStateChangeCallback(callback) {
-
     this.onStateChange = callback;
-
   }
 
-
-
   createRoom(hostSocketId, hostName) {
-
     const roomId = uuidv4().substring(0, 6).toUpperCase();
 
-
-
     const room = {
-
       id: roomId,
 
       host: hostSocketId,
 
       players: new Map([
-
         [
-
           hostSocketId,
 
           {
-
             id: hostSocketId,
 
             name: hostName,
@@ -46,11 +30,8 @@ class GameManager {
             score: 0,
 
             isHost: true,
-
           },
-
         ],
-
       ]),
 
       settings: {
@@ -62,7 +43,7 @@ class GameManager {
         canvasWidth: 800,
         canvasHeight: 600,
         penThickness: 10,
-        allowClearCanvas: true
+        allowClearCanvas: true,
       },
       gameState: "lobby", // lobby, prompt, drawing, guessing, results, finished
       currentRound: 0,
@@ -82,43 +63,26 @@ class GameManager {
       resultsTabIndex: 0,
       resultsItemIndex: 0,
       resultsComplete: false,
-      allGameText: []
+      allGameText: [],
     };
-
-
 
     this.rooms.set(roomId, room);
 
     console.log(`[Game Manager] Room ${roomId} created by ${hostName}`);
 
-
-
     return room;
   }
 
-
-
   joinRoom(roomId, socketId, playerName) {
-
     const room = this.rooms.get(roomId);
 
-
-
     if (!room) {
-
       return { success: false, error: "部屋が見つかりません" };
-
     }
-
-
 
     if (room.players.size >= (room.settings.maxPlayers || 8)) {
-
       return { success: false, error: "部屋が満員です" };
-
     }
-
-
 
     // Allow mid-game join
 
@@ -128,10 +92,7 @@ class GameManager {
 
     // }
 
-
-
     room.players.set(socketId, {
-
       id: socketId,
 
       name: playerName,
@@ -139,54 +100,59 @@ class GameManager {
       score: 0,
 
       isHost: false,
-
     });
-
-
 
     console.log(`[Game Manager] ${playerName} joined room ${roomId}`);
 
-
-
     return { success: true, room };
-
   }
-
-
 
   pauseGame(roomId) {
     const room = this.rooms.get(roomId);
     if (!room || room.isPaused) return false;
-    
+
     room.isPaused = true;
-    
+
     // Cache remaining time
     if (room.timer) {
-        clearTimeout(room.timer);
-        room.timer = null;
-        
-        const now = Date.now();
-        const elapsed = (now - room.roundStartTime) / 1000;
-        
-        // Calculate original duration based on state
-        let duration = 0;
-        if (room.gameState === 'drawing') duration = room.settings.drawingTimeSeconds;
-        else if (room.gameState === 'guessing') duration = room.settings.guessingTimeSeconds;
-        else if (room.gameState === 'prompt') duration = room.settings.promptTimeSeconds;
-        
-        room.remainingTime = Math.max(0, duration - elapsed);
+      clearTimeout(room.timer);
+      room.timer = null;
+
+      const now = Date.now();
+      const elapsed = (now - room.roundStartTime) / 1000;
+
+      // Calculate original duration based on state
+      let duration = 0;
+      if (room.gameState === "drawing")
+        duration = room.settings.drawingTimeSeconds;
+      else if (room.gameState === "guessing")
+        duration = room.settings.guessingTimeSeconds;
+      else if (room.gameState === "prompt")
+        duration = room.settings.promptTimeSeconds;
+
+      room.remainingTime = Math.max(0, duration - elapsed);
     }
-    
-    console.log(`[Game Manager] Room ${roomId} paused. Remaining time: ${room.remainingTime.toFixed(1)}s`);
+
+    console.log(
+      `[Game Manager] Room ${roomId} paused. Remaining time: ${room.remainingTime.toFixed(1)}s`,
+    );
     return true;
   }
 
   resumeGame(roomId) {
     const room = this.rooms.get(roomId);
     if (!room || !room.isPaused) return false;
-    
+
     room.isPaused = false;
-    room.roundStartTime = Date.now() - ((room.settings[room.gameState === 'drawing' ? 'drawingTimeSeconds' : 'guessingTimeSeconds'] || 0) - room.remainingTime) * 1000;
+    room.roundStartTime =
+      Date.now() -
+      ((room.settings[
+        room.gameState === "drawing"
+          ? "drawingTimeSeconds"
+          : "guessingTimeSeconds"
+      ] || 0) -
+        room.remainingTime) *
+        1000;
     // Actually, simpler logic:
     // We want to fire the callback after room.remainingTime seconds.
     // And we need to fake `roundStartTime` so that `emitRoomState` calculates correct remaining time.
@@ -194,38 +160,46 @@ class GameManager {
     // So: additional_elapsed = duration - remaining
     // now - start = additional_elapsed
     // start = now - additional_elapsed
-    
-    const duration = room.gameState === 'drawing' ? room.settings.drawingTimeSeconds : 
-                     (room.gameState === 'guessing' ? room.settings.guessingTimeSeconds : room.settings.promptTimeSeconds);
-                     
-    // Reset start time so that calculated remaining time matches the stored remainingTime                 
+
+    const duration =
+      room.gameState === "drawing"
+        ? room.settings.drawingTimeSeconds
+        : room.gameState === "guessing"
+          ? room.settings.guessingTimeSeconds
+          : room.settings.promptTimeSeconds;
+
+    // Reset start time so that calculated remaining time matches the stored remainingTime
     room.roundStartTime = Date.now() - (duration - room.remainingTime) * 1000;
 
     // Restart timer
     if (room.remainingTime > 0) {
-        const callback = () => {
-             if (room.gameState === 'drawing') {
-                 this.endDrawingPhase(roomId).then(() => { if (this.onStateChange) this.onStateChange(roomId); });
-             } else if (room.gameState === 'guessing') {
-                 this.endGuessingPhase(roomId);
-                 if (this.onStateChange) this.onStateChange(roomId);
-             } else if (room.gameState === 'prompt') {
-                 this.endPromptPhase(roomId);
-                 if (this.onStateChange) this.onStateChange(roomId);
-             }
-        };
-        room.timer = setTimeout(callback, room.remainingTime * 1000);
+      const callback = () => {
+        if (room.gameState === "drawing") {
+          this.endDrawingPhase(roomId).then(() => {
+            if (this.onStateChange) this.onStateChange(roomId);
+          });
+        } else if (room.gameState === "guessing") {
+          this.endGuessingPhase(roomId);
+          if (this.onStateChange) this.onStateChange(roomId);
+        } else if (room.gameState === "prompt") {
+          this.endPromptPhase(roomId);
+          if (this.onStateChange) this.onStateChange(roomId);
+        }
+      };
+      room.timer = setTimeout(callback, room.remainingTime * 1000);
     } else {
-        // Immediate finish if time was up
-         if (room.gameState === 'drawing') {
-             this.endDrawingPhase(roomId).then(() => { if (this.onStateChange) this.onStateChange(roomId); });
-         } else if (room.gameState === 'guessing') {
-             this.endGuessingPhase(roomId);
-             if (this.onStateChange) this.onStateChange(roomId);
-         } else if (room.gameState === 'prompt') {
-             this.endPromptPhase(roomId);
-             if (this.onStateChange) this.onStateChange(roomId);
-         }
+      // Immediate finish if time was up
+      if (room.gameState === "drawing") {
+        this.endDrawingPhase(roomId).then(() => {
+          if (this.onStateChange) this.onStateChange(roomId);
+        });
+      } else if (room.gameState === "guessing") {
+        this.endGuessingPhase(roomId);
+        if (this.onStateChange) this.onStateChange(roomId);
+      } else if (room.gameState === "prompt") {
+        this.endPromptPhase(roomId);
+        if (this.onStateChange) this.onStateChange(roomId);
+      }
     }
 
     console.log(`[Game Manager] Room ${roomId} resumed`);
@@ -235,15 +209,15 @@ class GameManager {
   abortGame(roomId) {
     const room = this.rooms.get(roomId);
     if (!room) return false;
-    
+
     // Clear any active timers
     if (room.timer) {
       clearTimeout(room.timer);
       room.timer = null;
     }
-    
+
     // Reset game state to lobby
-    room.gameState = 'lobby';
+    room.gameState = "lobby";
     room.currentRound = 0;
     room.currentDrawer = null;
     room.currentPrompt = null;
@@ -262,27 +236,21 @@ class GameManager {
     room.allGameText = [];
     room.isPaused = false;
     room.remainingTime = 0;
-    
+
     console.log(`[Game Manager] Game aborted in room ${roomId}`);
     return true;
   }
 
   leaveRoom(roomId, socketId) {
-
     const room = this.rooms.get(roomId);
 
     if (!room) return;
 
-
-
     room.players.delete(socketId);
-
-
 
     // If host left, assign new host
 
     if (room.host === socketId && room.players.size > 0) {
-
       const newHost = Array.from(room.players.keys())[0];
 
       room.host = newHost;
@@ -290,39 +258,23 @@ class GameManager {
       room.players.get(newHost).isHost = true;
 
       console.log(`[Game Manager] New host assigned in room ${roomId}`);
-
     }
-
-
 
     // Delete room if empty
 
     if (room.players.size === 0) {
-
       if (room.timer) clearTimeout(room.timer);
 
       this.rooms.delete(roomId);
 
       console.log(`[Game Manager] Room ${roomId} deleted (empty)`);
-
     } else {
-
       // If player left during active phases, force end phase
 
       if (room.currentDrawer === socketId) {
-
-        if (
-
-          room.gameState === "drawing" ||
-
-          room.gameState === "prompt"
-
-        ) {
-
+        if (room.gameState === "drawing" || room.gameState === "prompt") {
           console.log(
-
             `[Game Manager] Drawer left room ${roomId}. Ending phase early.`,
-
           );
 
           if (room.timer) clearTimeout(room.timer);
@@ -332,40 +284,25 @@ class GameManager {
           } else {
             this.endDrawingPhase(roomId);
           }
-
         }
-
       }
-
     }
-
   }
 
-
-
   updateSettings(roomId, settings) {
-
     const room = this.rooms.get(roomId);
 
     if (!room) return false;
 
-
-
     room.settings = { ...room.settings, ...settings };
 
     return true;
-
   }
 
-
-
   startGame(roomId) {
-
     const room = this.rooms.get(roomId);
 
     if (!room || room.gameState !== "lobby") return false;
-
-
 
     room.currentRound = 1;
     room.gameState = "prompt";
@@ -385,16 +322,22 @@ class GameManager {
     room.currentPrompt = null;
     room.roundStartTime = Date.now();
 
+    // Reset player submission flags
+    room.players.forEach((player) => {
+      player.hasSubmittedPrompt = false;
+      player.hasSubmittedDrawing = false;
+    });
+
     room.timer = setTimeout(() => {
       this.endPromptPhase(roomId);
       if (this.onStateChange) this.onStateChange(roomId);
     }, room.settings.promptTimeSeconds * 1000);
 
-    console.log(`[Game Manager] Game started in room ${roomId}. Prompt phase begins.`);
+    console.log(
+      `[Game Manager] Game started in room ${roomId}. Prompt phase begins.`,
+    );
     return true;
   }
-
-
 
   submitPrompt(roomId, socketId, prompt) {
     const room = this.rooms.get(roomId);
@@ -418,7 +361,7 @@ class GameManager {
       type: "prompt",
       playerId: socketId,
       playerName: room.players.get(socketId)?.name || "",
-      text: prompt.trim()
+      text: prompt.trim(),
     });
 
     if (room.prompts.size >= room.players.size) {
@@ -444,9 +387,13 @@ class GameManager {
     room.currentPrompt = null;
 
     room.turnOrder.forEach((playerId, index) => {
-      const promptOwnerId = room.turnOrder[(index - 1 + room.turnOrder.length) % room.turnOrder.length];
       const promptText = room.currentTexts.get(promptOwnerId) || "";
       room.promptAssignments.set(playerId, { promptOwnerId, promptText });
+    });
+
+    // Reset drawing submission flags for the new round
+    room.players.forEach((player) => {
+      player.hasSubmittedDrawing = false;
     });
 
     room.timer = setTimeout(async () => {
@@ -457,8 +404,6 @@ class GameManager {
     console.log(`[Game Manager] Prompt phase ended in room ${roomId}`);
     return true;
   }
-
-
 
   submitDrawing(roomId, socketId, drawing, png) {
     const room = this.rooms.get(roomId);
@@ -477,7 +422,7 @@ class GameManager {
         playerId: socketId,
         playerName: room.players.get(socketId)?.name || "",
         drawing: Array.isArray(drawing) ? drawing : [],
-        png: png || null
+        png: png || null,
       });
     }
 
@@ -495,33 +440,22 @@ class GameManager {
     return true;
   }
 
-
-
   clearDrawing(roomId) {
     const room = this.rooms.get(roomId);
     if (!room) return false;
     return true;
   }
 
-
-
   async endDrawingPhase(roomId) {
-
     const room = this.rooms.get(roomId);
 
     if (!room || room.gameState !== "drawing") return false;
 
-
-
     if (room.timer) {
-
       clearTimeout(room.timer);
 
       room.timer = null;
-
     }
-
-
 
     room.gameState = "guessing";
     room.guesses.clear();
@@ -529,10 +463,19 @@ class GameManager {
     room.drawingAssignments = new Map();
 
     room.turnOrder.forEach((playerId, index) => {
-      const drawingOwnerId = room.turnOrder[(index - 1 + room.turnOrder.length) % room.turnOrder.length];
+      const drawingOwnerId =
+        room.turnOrder[
+          (index - 1 + room.turnOrder.length) % room.turnOrder.length
+        ];
       const assignedDrawing = room.drawings.get(drawingOwnerId) || [];
-      const chainOwnerId = room.promptAssignments.get(drawingOwnerId)?.promptOwnerId || drawingOwnerId;
-      room.drawingAssignments.set(playerId, { drawingOwnerId, drawing: assignedDrawing, chainOwnerId });
+      const chainOwnerId =
+        room.promptAssignments.get(drawingOwnerId)?.promptOwnerId ||
+        drawingOwnerId;
+      room.drawingAssignments.set(playerId, {
+        drawingOwnerId,
+        drawing: assignedDrawing,
+        chainOwnerId,
+      });
     });
 
     room.timer = setTimeout(() => {
@@ -544,10 +487,7 @@ class GameManager {
     return true;
   }
 
-
-
   submitGuess(roomId, socketId, guess) {
-
     const room = this.rooms.get(roomId);
 
     if (!room || room.gameState !== "guessing") return false;
@@ -565,23 +505,18 @@ class GameManager {
         type: "guess",
         playerId: socketId,
         playerName: room.players.get(socketId)?.name || "",
-        text: guess.trim()
+        text: guess.trim(),
       });
       room.currentTexts.set(chainOwnerId, guess.trim());
     }
-
-
 
     // Check if ALL guessers have guessed
 
     const guessersCount = room.players.size;
 
     if (room.guesses.size >= guessersCount) {
-
       console.log(
-
         `[Game Manager] All players have guessed. Ending round early.`,
-
       );
 
       // End immediately
@@ -589,23 +524,14 @@ class GameManager {
       this.endGuessingPhase(roomId);
 
       if (this.onStateChange) {
-
         this.onStateChange(roomId);
-
       }
-
     }
 
-
-
     return true;
-
   }
 
-
-
   endGuessingPhase(roomId) {
-
     const room = this.rooms.get(roomId);
 
     // Warning: might be called multiple times if timer and early-end race?
@@ -614,19 +540,15 @@ class GameManager {
 
     if (!room || room.gameState !== "guessing") return false;
 
-
-
     if (room.timer) {
-
       clearTimeout(room.timer);
 
       room.timer = null;
-
     }
 
-
-
-    room.allGameText.push(...Array.from(room.guesses.values()).map(text => `答え: ${text}`));
+    room.allGameText.push(
+      ...Array.from(room.guesses.values()).map((text) => `答え: ${text}`),
+    );
 
     if (room.currentRound < room.players.size) {
       room.currentRound += 1;
@@ -638,9 +560,14 @@ class GameManager {
       room.roundStartTime = Date.now();
 
       room.turnOrder.forEach((playerId, index) => {
-        const promptOwnerId = room.turnOrder[(index - 1 + room.turnOrder.length) % room.turnOrder.length];
         const promptText = room.currentTexts.get(promptOwnerId) || "";
         room.promptAssignments.set(playerId, { promptOwnerId, promptText });
+      });
+
+      // Reset submission flags for the new round
+      room.players.forEach((player) => {
+        player.hasSubmittedPrompt = false;
+        player.hasSubmittedDrawing = false;
       });
 
       room.timer = setTimeout(async () => {
@@ -648,19 +575,21 @@ class GameManager {
         if (this.onStateChange) this.onStateChange(roomId);
       }, room.settings.drawingTimeSeconds * 1000);
 
-      console.log(`[Game Manager] Guessing phase ended in room ${roomId}. Moving to next drawing round.`);
+      console.log(
+        `[Game Manager] Guessing phase ended in room ${roomId}. Moving to next drawing round.`,
+      );
       return true;
     }
 
     room.gameState = "results";
 
     const chains = [];
-    room.turnOrder.forEach(ownerId => {
+    room.turnOrder.forEach((ownerId) => {
       const items = room.chainItems.get(ownerId) || [];
       chains.push({
         ownerId,
         ownerName: room.players.get(ownerId)?.name || "",
-        items
+        items,
       });
     });
 
@@ -703,18 +632,12 @@ class GameManager {
 
   getRoom(roomId) {
     return this.rooms.get(roomId);
-
   }
 
-
-
   returnToLobby(roomId) {
-
     const room = this.rooms.get(roomId);
 
     if (!room) return false;
-
-
 
     // Reset game state but keep players and settings
 
@@ -738,35 +661,20 @@ class GameManager {
     room.currentTexts = new Map();
     room.allGameText = [];
 
-
-
     console.log(`[Game Manager] Room ${roomId} returned to lobby`);
 
     return true;
-
   }
 
-
-
   getRoomBySocket(socketId) {
-
     for (const room of this.rooms.values()) {
-
       if (room.players.has(socketId)) {
-
         return room;
-
       }
-
     }
 
     return null;
-
   }
-
 }
 
-
-
 module.exports = GameManager;
-
