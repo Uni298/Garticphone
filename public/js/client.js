@@ -9,6 +9,7 @@ let hasSubmittedPrompt = false;
 let hasSubmittedGuess = false;
 let hasSubmittedDrawing = false;
 let hasShownResultsReveal = false;
+let isAnimatingResults = false;
 
 // Modal confirmation
 let modalResolve = null;
@@ -436,7 +437,10 @@ function handleDrawing(state) {
 
   hasSubmittedGuess = false;
 
-  // Only clear canvas if we're entering drawing from a different phase
+  // Clear canvas for new drawing round
+  if (drawingCanvas) {
+    drawingCanvas.clear();
+  }
 
     
   
@@ -522,6 +526,10 @@ function handleGuessing(state) {
   }
 
   drawingCanvas.clear();
+  // Clear any existing wait state
+  if (window.hideWaitingAnimation) {
+    window.hideWaitingAnimation();
+  }
 }
 
 function handleResults(state) {
@@ -541,7 +549,12 @@ function handleResults(state) {
   const overlay = document.getElementById('slot-overlay');
   const allText = state.allGameText || [];
 
+  // If we are already animating, don't do anything else.
+  // The reveal callback will handle showing the results screen once finished.
+  if (isAnimatingResults) return;
+
   const reveal = () => {
+    isAnimatingResults = false;
     if (overlay) {
       overlay.classList.remove('active');
       setTimeout(() => overlay.classList.add('hidden'), 400);
@@ -556,6 +569,7 @@ function handleResults(state) {
 
   if (!hasShownResultsReveal) {
     hasShownResultsReveal = true;
+    isAnimatingResults = true;
     if (overlay) {
       overlay.classList.remove('hidden');
       overlay.classList.add('active');
@@ -567,6 +581,9 @@ function handleResults(state) {
       setTimeout(reveal, 5000);
     }
   } else {
+    // Only call reveal immediately if we're not currently animating.
+    // If results were already shown (e.g. host moved to next result),
+    // update is handled inside reveal() via ui.update.
     reveal();
   }
 }
